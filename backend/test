@@ -1,0 +1,13 @@
+#!/bin/bash
+
+CSRF_TOKEN=$(grep csrfToken ../cookies.txt | tail -1 | awk '{print $7}') && \
+curl "http://localhost:5007/api/v1/students?name=John%20Smith" \
+  -b ../cookies.txt -c ../cookies.txt \
+  -H "X-CSRF-Token: $CSRF_TOKEN"
+
+echo ""
+
+CSRF_TOKEN=$(grep csrfToken ../cookies.txt | tail -1 | awk '{print $7}') && \
+curl http://localhost:5007/api/v1/students \
+  -b ../cookies.txt -c ../cookies.txt \
+  -H "X-CSRF-Token: $CSRF_TOKEN"

@@ -17,6 +17,10 @@ const { departmentRoutes } = require("../modules/departments/department-router.j
 const { handleGetDashboardData } = require("../modules/dashboard/dashboard-controller.js");
 const { accessControlRoutes } = require("../modules/access-control/access-control-router.js");
 
+router.get("/health", (req, res) => {
+    res.status(200).json({ status: "healthy", timestamp: new Date().toISOString() });
+});
+
 router.get("/teachers", authenticateToken, csrfProtection, checkApiAccess, handleGetAllTeachers);
 router.get("/dashboard", authenticateToken, csrfProtection, checkApiAccess, handleGetDashboardData);
 router.use("/access-controls", authenticateToken, csrfProtection, accessControlRoutes);

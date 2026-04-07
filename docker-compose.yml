@@ -1,0 +1,116 @@
+# Docker Compose configuration for Student Management System
+# This file orchestrates the frontend, backend, and database services
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: school-mgmt-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: school_mgmt
+    volumes:
+      # Persistent volume for database data
+      - postgres_data:/var/lib/postgresql/data
+      # Initialization scripts - executed on first container start
+      - ./seed_db/tables.sql:/docker-entrypoint-initdb.d/01-tables.sql:ro
+      - ./seed_db/seed-db.sql:/docker-entrypoint-initdb.d/02-seed-data.sql:ro
+    ports:
+      - "5433:5432"
+    networks:
+      - school-mgmt-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d school_mgmt" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: school-mgmt-backend
+    environment:
+      # Server Configuration
+      PORT: 5007
+      NODE_ENV: production
+
+      # Database Configuration - connects to postgres service
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/school_mgmt
+
+      # JWT Configuration
+      JWT_ACCESS_TOKEN_SECRET: ${JWT_ACCESS_TOKEN_SECRET:-your_super_secret_access_token_key_change_in_production}
+      JWT_REFRESH_TOKEN_SECRET: ${JWT_REFRESH_TOKEN_SECRET:-your_super_secret_refresh_token_key_change_in_production}
+      JWT_ACCESS_TOKEN_TIME_IN_MS: 900000
+      JWT_REFRESH_TOKEN_TIME_IN_MS: 28800000
+
+      # CSRF Protection
+      CSRF_TOKEN_SECRET: ${CSRF_TOKEN_SECRET:-your_csrf_secret_key_change_in_production}
+      CSRF_TOKEN_TIME_IN_MS: 950000
+
+      # Email Configuration (optional - for password reset)
+      MAIL_FROM_USER: ${MAIL_FROM_USER:-noreply@school.com}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+
+      # Email Verification
+      EMAIL_VERIFICATION_TOKEN_SECRET: ${EMAIL_VERIFICATION_TOKEN_SECRET:-your_email_verification_secret}
+      EMAIL_VERIFICATION_TOKEN_TIME_IN_MS: 18000000
+
+      # Password Setup
+      PASSWORD_SETUP_TOKEN_SECRET: ${PASSWORD_SETUP_TOKEN_SECRET:-your_password_setup_secret}
+      PASSWORD_SETUP_TOKEN_TIME_IN_MS: 300000
+
+      # Frontend URL (for CORS and email links)
+      UI_URL: http://localhost:5173
+      API_URL: http://localhost:5007
+
+      # Cookie Configuration
+      COOKIE_DOMAIN: localhost
+    ports:
+      - "5007:5007"
+    networks:
+      - school-mgmt-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5007/api/v1/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: school-mgmt-frontend
+    environment:
+      # API Configuration - points to backend service
+      VITE_API_URL: http://localhost:5007
+      VITE_APP_NAME: Student Management System
+      VITE_APP_VERSION: 1.0.0
+      NODE_ENV: production
+    ports:
+      - "5173:80"
+    networks:
+      - school-mgmt-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+# Named volumes for data persistence
+volumes:
+  postgres_data:
+    driver: local
+
+# Custom network for service communication
+networks:
+  school-mgmt-network:
+    driver: bridge
